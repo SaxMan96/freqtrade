@@ -70,8 +70,7 @@ def test_protectionmanager(mocker, default_conf):
 ])
 def test_protections_init(mocker, default_conf, timeframe, expected, protconf):
     default_conf['timeframe'] = timeframe
-    default_conf['protections'] = protconf
-    man = ProtectionManager(default_conf)
+    man = ProtectionManager(default_conf, protconf)
     assert len(man._protection_handlers) == len(protconf)
     assert man._protection_handlers[0]._lookback_period == expected[0]
     assert man._protection_handlers[0]._stop_duration == expected[1]
@@ -94,7 +93,7 @@ def test_stoploss_guard(mocker, default_conf, fee, caplog):
     Trade.query.session.add(generate_mock_trade(
         'XRP/BTC', fee.return_value, False, sell_reason=SellType.STOP_LOSS.value,
         min_ago_open=200, min_ago_close=30,
-        ))
+    ))
 
     assert not freqtrade.protections.global_stop()
     assert not log_has_re(message, caplog)
@@ -151,7 +150,7 @@ def test_stoploss_guard_perpair(mocker, default_conf, fee, caplog, only_per_pair
     Trade.query.session.add(generate_mock_trade(
         pair, fee.return_value, False, sell_reason=SellType.STOP_LOSS.value,
         min_ago_open=200, min_ago_close=30, profit_rate=0.9,
-        ))
+    ))
 
     assert not freqtrade.protections.stop_per_pair(pair)
     assert not freqtrade.protections.global_stop()

@@ -95,6 +95,7 @@ Example configuration showing the different settings:
         "buy_fill": "off",
         "sell_fill": "off"
     },
+    "reload": true,
     "balance_dust_level": 0.01
 },
 ```
@@ -105,6 +106,7 @@ Example configuration showing the different settings:
 
 
 `balance_dust_level` will define what the `/balance` command takes as "dust" - Currencies with a balance below this will be shown.
+`reload` allows you to disable reload-buttons on selected messages.
 
 ## Create a custom keyboard (command shortcut buttons)
 
@@ -243,10 +245,10 @@ current    max
 Return a summary of your profit/loss and performance.
 
 > **ROI:** Close trades  
->   ∙ `0.00485701 BTC (258.45%)`  
+>   ∙ `0.00485701 BTC (2.2%) (15.2 Σ%)`  
 >   ∙ `62.968 USD`  
 > **ROI:** All trades  
->   ∙ `0.00255280 BTC (143.43%)`  
+>   ∙ `0.00255280 BTC (1.5%) (6.43 Σ%)`  
 >   ∙ `33.095 EUR`  
 >  
 > **Total Trade Count:** `138`  
@@ -254,6 +256,10 @@ Return a summary of your profit/loss and performance.
 > **Latest Trade opened:** `2 minutes ago`  
 > **Avg. Duration:** `2:33:45`  
 > **Best Performing:** `PAY/BTC: 50.23%`  
+
+The relative profit of `1.2%` is the average profit per trade.  
+The relative profit of `15.2 Σ%` is be based on the starting capital - so in this case, the starting capital was `0.00485701 * 1.152 = 0.00738 BTC`.
+Starting capital is either taken from the `available_capital` setting, or calculated by using current wallet size - profits.
 
 ### /forcesell <trade_id>
 
