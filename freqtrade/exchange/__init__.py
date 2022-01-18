@@ -1,10 +1,11 @@
 # flake8: noqa: F401
 # isort: off
-from freqtrade.exchange.common import MAP_EXCHANGE_CHILDCLASS
+from freqtrade.exchange.common import remove_credentials, MAP_EXCHANGE_CHILDCLASS
 from freqtrade.exchange.exchange import Exchange
 # isort: on
 from freqtrade.exchange.bibox import Bibox
 from freqtrade.exchange.binance import Binance
+from freqtrade.exchange.bitpanda import Bitpanda
 from freqtrade.exchange.bittrex import Bittrex
 from freqtrade.exchange.bybit import Bybit
 from freqtrade.exchange.coinbasepro import Coinbasepro
@@ -19,3 +20,4 @@ from freqtrade.exchange.gateio import Gateio
 from freqtrade.exchange.hitbtc import Hitbtc
 from freqtrade.exchange.kraken import Kraken
 from freqtrade.exchange.kucoin import Kucoin
+from freqtrade.exchange.okex import Okex

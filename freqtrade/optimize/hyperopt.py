@@ -22,6 +22,7 @@ from pandas import DataFrame
 from freqtrade.constants import DATETIME_PRINT_FORMAT, FTHYPT_FILEVERSION, LAST_BT_RESULT_FN
 from freqtrade.data.converter import trim_dataframes
 from freqtrade.data.history import get_timerange
+from freqtrade.exceptions import OperationalException
 from freqtrade.misc import deep_merge_dicts, file_dump_json, plural
 from freqtrade.optimize.backtesting import Backtesting
 # Import IHyperOpt and IHyperOptLoss to allow unpickling classes from these modules
@@ -30,7 +31,7 @@ from freqtrade.optimize.hyperopt_interface import IHyperOpt  # noqa: F401
 from freqtrade.optimize.hyperopt_loss_interface import IHyperOptLoss  # noqa: F401
 from freqtrade.optimize.hyperopt_tools import HyperoptTools, hyperopt_serializer
 from freqtrade.optimize.optimize_reports import generate_strategy_stats
-from freqtrade.resolvers.hyperopt_resolver import HyperOptLossResolver, HyperOptResolver
+from freqtrade.resolvers.hyperopt_resolver import HyperOptLossResolver
 
 
 # Suppress scikit-learn FutureWarnings from skopt
@@ -75,13 +76,14 @@ class Hyperopt:
         self.config = config
 
         self.backtesting = Backtesting(self.config)
+        self.pairlist = self.backtesting.pairlists.whitelist
 
         if not self.config.get('hyperopt'):
             self.custom_hyperopt = HyperOptAuto(self.config)
-            self.auto_hyperopt = True
         else:
-            self.custom_hyperopt = HyperOptResolver.load_hyperopt(self.config)
-            self.auto_hyperopt = False
+            raise OperationalException(
+                "Using separate Hyperopt files has been removed in 2021.9. Please convert "
+                "your existing Hyperopt file to the new Hyperoptable strategy interface")
 
         self.backtesting._set_strategy(self.backtesting.strategylist[0])
         self.custom_hyperopt.strategy = self.backtesting.strategy
@@ -102,31 +104,6 @@ class Hyperopt:
 
         self.num_epochs_saved = 0
         self.current_best_epoch: Optional[Dict[str, Any]] = None
-
-        if not self.auto_hyperopt:
-            # Populate "fallback" functions here
-            # (hasattr is slow so should not be run during "regular" operations)
-            if hasattr(self.custom_hyperopt, 'populate_indicators'):
-                logger.warning(
-                    "DEPRECATED: Using `populate_indicators()` in the hyperopt file is deprecated. "
-                    "Please move these methods to your strategy."
-                    )
-                self.backtesting.strategy.populate_indicators = (  # type: ignore
-                    self.custom_hyperopt.populate_indicators)  # type: ignore
-            if hasattr(self.custom_hyperopt, 'populate_buy_trend'):
-                logger.warning(
-                    "DEPRECATED: Using `populate_buy_trend()` in the hyperopt file is deprecated. "
-                    "Please move these methods to your strategy."
-                )
-                self.backtesting.strategy.populate_buy_trend = (  # type: ignore
-                    self.custom_hyperopt.populate_buy_trend)  # type: ignore
-            if hasattr(self.custom_hyperopt, 'populate_sell_trend'):
-                logger.warning(
-                    "DEPRECATED: Using `populate_sell_trend()` in the hyperopt file is deprecated. "
-                    "Please move these methods to your strategy."
-                )
-                self.backtesting.strategy.populate_sell_trend = (  # type: ignore
-                    self.custom_hyperopt.populate_sell_trend)  # type: ignore
 
         # Use max_open_trades for hyperopt as well, except --disable-max-market-positions is set
         if self.config.get('use_max_market_positions', True):
@@ -256,7 +233,7 @@ class Hyperopt:
         """
         Assign the dimensions in the hyperoptimization space.
         """
-        if self.auto_hyperopt and HyperoptTools.has_space(self.config, 'protection'):
+        if HyperoptTools.has_space(self.config, 'protection'):
             # Protections can only be optimized when using the Parameter interface
             logger.debug("Hyperopt has 'protection' space")
             # Enable Protections if protection space is selected.
@@ -265,7 +242,7 @@ class Hyperopt:
 
         if HyperoptTools.has_space(self.config, 'buy'):
             logger.debug("Hyperopt has 'buy' space")
-            self.buy_space = self.custom_hyperopt.indicator_space()
+            self.buy_space = self.custom_hyperopt.buy_indicator_space()
 
         if HyperoptTools.has_space(self.config, 'sell'):
             logger.debug("Hyperopt has 'sell' space")
@@ -282,8 +259,18 @@ class Hyperopt:
         if HyperoptTools.has_space(self.config, 'trailing'):
             logger.debug("Hyperopt has 'trailing' space")
             self.trailing_space = self.custom_hyperopt.trailing_space()
+
         self.dimensions = (self.buy_space + self.sell_space + self.protection_space
                            + self.roi_space + self.stoploss_space + self.trailing_space)
+
+    def assign_params(self, params_dict: Dict, category: str) -> None:
+        """
+        Assign hyperoptable parameters
+        """
+        for attr_name, attr in self.backtesting.strategy.enumerate_parameters(category):
+            if attr.optimize:
+                # noinspection PyProtectedMember
+                attr.value = params_dict[attr_name]
 
     def generate_optimizer(self, raw_params: List[Any], iteration=None) -> Dict:
         """
@@ -296,18 +283,13 @@ class Hyperopt:
 
         # Apply parameters
         if HyperoptTools.has_space(self.config, 'buy'):
-            self.backtesting.strategy.advise_buy = (  # type: ignore
-                self.custom_hyperopt.buy_strategy_generator(params_dict))
+            self.assign_params(params_dict, 'buy')
 
         if HyperoptTools.has_space(self.config, 'sell'):
-            self.backtesting.strategy.advise_sell = (  # type: ignore
-                self.custom_hyperopt.sell_strategy_generator(params_dict))
+            self.assign_params(params_dict, 'sell')
 
         if HyperoptTools.has_space(self.config, 'protection'):
-            for attr_name, attr in self.backtesting.strategy.enumerate_parameters('protection'):
-                if attr.optimize:
-                    # noinspection PyProtectedMember
-                    attr.value = params_dict[attr_name]
+            self.assign_params(params_dict, 'protection')
 
         if HyperoptTools.has_space(self.config, 'roi'):
             self.backtesting.strategy.minimal_roi = (  # type: ignore
@@ -351,7 +333,7 @@ class Hyperopt:
         params_details = self._get_params_details(params_dict)
 
         strat_stats = generate_strategy_stats(
-            processed, self.backtesting.strategy.get_strategy_name(),
+            self.pairlist, self.backtesting.strategy.get_strategy_name(),
             backtesting_results, min_date, max_date, market_change=0
         )
         results_explanation = HyperoptTools.format_results_explanation_string(
@@ -385,10 +367,20 @@ class Hyperopt:
         }
 
     def get_optimizer(self, dimensions: List[Dimension], cpu_count) -> Optimizer:
+        estimator = self.custom_hyperopt.generate_estimator()
+
+        acq_optimizer = "sampling"
+        if isinstance(estimator, str):
+            if estimator not in ("GP", "RF", "ET", "GBRT"):
+                raise OperationalException(f"Estimator {estimator} not supported.")
+            else:
+                acq_optimizer = "auto"
+
+        logger.info(f"Using estimator {estimator}.")
         return Optimizer(
             dimensions,
-            base_estimator="ET",
-            acq_optimizer="auto",
+            base_estimator=estimator,
+            acq_optimizer=acq_optimizer,
             n_initial_points=INITIAL_POINTS,
             acq_optimizer_kwargs={'n_jobs': cpu_count},
             random_state=self.random_state,
@@ -431,6 +423,7 @@ class Hyperopt:
         self.backtesting.exchange.close()
         self.backtesting.exchange._api = None  # type: ignore
         self.backtesting.exchange._api_async = None  # type: ignore
+        self.backtesting.exchange.loop = None  # type: ignore
         # self.backtesting.exchange = None  # type: ignore
         self.backtesting.pairlists = None  # type: ignore
 
@@ -517,11 +510,10 @@ class Hyperopt:
                     f"saved to '{self.results_file}'.")
 
         if self.current_best_epoch:
-            if self.auto_hyperopt:
-                HyperoptTools.try_export_params(
-                    self.config,
-                    self.backtesting.strategy.get_strategy_name(),
-                    self.current_best_epoch)
+            HyperoptTools.try_export_params(
+                self.config,
+                self.backtesting.strategy.get_strategy_name(),
+                self.current_best_epoch)
 
             HyperoptTools.show_epoch_details(self.current_best_epoch, self.total_epochs,
                                              self.print_json)

@@ -19,31 +19,49 @@ from tests.conftest import get_default_conf
 EXCHANGES = {
     'bittrex': {
         'pair': 'BTC/USDT',
+        'stake_currency': 'USDT',
         'hasQuoteVolume': False,
         'timeframe': '1h',
     },
     'binance': {
         'pair': 'BTC/USDT',
+        'stake_currency': 'USDT',
         'hasQuoteVolume': True,
         'timeframe': '5m',
     },
     'kraken': {
         'pair': 'BTC/USDT',
+        'stake_currency': 'USDT',
         'hasQuoteVolume': True,
         'timeframe': '5m',
     },
     'ftx': {
         'pair': 'BTC/USDT',
+        'stake_currency': 'USDT',
         'hasQuoteVolume': True,
         'timeframe': '5m',
     },
     'kucoin': {
         'pair': 'BTC/USDT',
+        'stake_currency': 'USDT',
         'hasQuoteVolume': True,
         'timeframe': '5m',
     },
     'gateio': {
         'pair': 'BTC/USDT',
+        'stake_currency': 'USDT',
+        'hasQuoteVolume': True,
+        'timeframe': '5m',
+    },
+    'okex': {
+        'pair': 'BTC/USDT',
+        'stake_currency': 'USDT',
+        'hasQuoteVolume': True,
+        'timeframe': '5m',
+    },
+    'bitvavo': {
+        'pair': 'BTC/EUR',
+        'stake_currency': 'EUR',
         'hasQuoteVolume': True,
         'timeframe': '5m',
     },
@@ -54,6 +72,8 @@ EXCHANGES = {
 def exchange_conf():
     config = get_default_conf((Path(__file__).parent / "testdata").resolve())
     config['exchange']['pair_whitelist'] = []
+    config['exchange']['key'] = ''
+    config['exchange']['secret'] = ''
     config['dry_run'] = False
     return config
 
@@ -61,6 +81,7 @@ def exchange_conf():
 @pytest.fixture(params=EXCHANGES, scope="class")
 def exchange(request, exchange_conf):
     exchange_conf['exchange']['name'] = request.param
+    exchange_conf['stake_currency'] = EXCHANGES[request.param]['stake_currency']
     exchange = ExchangeResolver.load_exchange(request.param, exchange_conf, validate=True)
 
     yield exchange, request.param

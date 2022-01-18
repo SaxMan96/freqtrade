@@ -9,7 +9,9 @@
     "cancel_open_orders_on_exit": false,
     "unfilledtimeout": {
         "buy": 10,
-        "sell": 30
+        "sell": 10,
+        "exit_timeout_count": 0,
+        "unit": "minutes"
     },
     "bid_strategy": {
         "ask_last_balance": 0.0,
@@ -28,11 +30,8 @@
         "name": "ftx",
         "key": "your_exchange_key",
         "secret": "your_exchange_secret",
-        "ccxt_config": {"enableRateLimit": true},
-        "ccxt_async_config": {
-            "enableRateLimit": true,
-            "rateLimit": 50
-        },
+        "ccxt_config": {},
+        "ccxt_async_config": {},
         "pair_whitelist": [
             "BTC/USD",
             "ETH/USD",

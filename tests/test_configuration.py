@@ -11,8 +11,7 @@ import pytest
 from jsonschema import ValidationError
 
 from freqtrade.commands import Arguments
-from freqtrade.configuration import (Configuration, check_exchange, remove_credentials,
-                                     validate_config_consistency)
+from freqtrade.configuration import Configuration, check_exchange, validate_config_consistency
 from freqtrade.configuration.config_validation import validate_config_schema
 from freqtrade.configuration.deprecated_settings import (check_conflicting_settings,
                                                          process_deprecated_setting,
@@ -23,7 +22,7 @@ from freqtrade.configuration.load_config import load_config_file, load_file, log
 from freqtrade.constants import DEFAULT_DB_DRYRUN_URL, DEFAULT_DB_PROD_URL, ENV_VAR_PREFIX
 from freqtrade.enums import RunMode
 from freqtrade.exceptions import OperationalException
-from freqtrade.loggers import _set_loggers, setup_logging, setup_logging_pre
+from freqtrade.loggers import FTBufferingHandler, _set_loggers, setup_logging, setup_logging_pre
 from tests.conftest import log_has, log_has_re, patched_configuration_load_config_file
 
 
@@ -617,18 +616,6 @@ def test_check_exchange(default_conf, caplog) -> None:
         check_exchange(default_conf)
 
 
-def test_remove_credentials(default_conf, caplog) -> None:
-    conf = deepcopy(default_conf)
-    conf['dry_run'] = False
-    remove_credentials(conf)
-
-    assert conf['dry_run'] is True
-    assert conf['exchange']['key'] == ''
-    assert conf['exchange']['secret'] == ''
-    assert conf['exchange']['password'] == ''
-    assert conf['exchange']['uid'] == ''
-
-
 def test_cli_verbose_with_params(default_conf, mocker, caplog) -> None:
     patched_configuration_load_config_file(mocker, default_conf)
 
@@ -699,7 +686,7 @@ def test_set_loggers_syslog():
     assert len(logger.handlers) == 3
     assert [x for x in logger.handlers if type(x) == logging.handlers.SysLogHandler]
     assert [x for x in logger.handlers if type(x) == logging.StreamHandler]
-    assert [x for x in logger.handlers if type(x) == logging.handlers.BufferingHandler]
+    assert [x for x in logger.handlers if type(x) == FTBufferingHandler]
     # setting up logging again should NOT cause the loggers to be added a second time.
     setup_logging(config)
     assert len(logger.handlers) == 3
@@ -722,7 +709,7 @@ def test_set_loggers_Filehandler(tmpdir):
     assert len(logger.handlers) == 3
     assert [x for x in logger.handlers if type(x) == logging.handlers.RotatingFileHandler]
     assert [x for x in logger.handlers if type(x) == logging.StreamHandler]
-    assert [x for x in logger.handlers if type(x) == logging.handlers.BufferingHandler]
+    assert [x for x in logger.handlers if type(x) == FTBufferingHandler]
     # setting up logging again should NOT cause the loggers to be added a second time.
     setup_logging(config)
     assert len(logger.handlers) == 3
@@ -1372,6 +1359,7 @@ def test_flat_vars_to_nested_dict(caplog):
         'FREQTRADE__ASK_STRATEGY__PRICE_SIDE': 'bid',
         'FREQTRADE__ASK_STRATEGY__cccc': '500',
         'FREQTRADE__STAKE_AMOUNT': '200.05',
+        'FREQTRADE__TELEGRAM__CHAT_ID': '2151',
         'NOT_RELEVANT': '200.0',  # Will be ignored
     }
     expected = {
@@ -1386,6 +1374,9 @@ def test_flat_vars_to_nested_dict(caplog):
             },
             'some_setting': True,
             'some_false_setting': False,
+        },
+        'telegram': {
+            'chat_id': '2151'
         }
     }
     res = flat_vars_to_nested_dict(test_args, ENV_VAR_PREFIX)
